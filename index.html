@@ -106,6 +106,29 @@
       box-shadow: 0 14px 30px rgba(59, 107, 214, 0.45), 0 0 26px rgba(59, 107, 214, 0.55);
     }
 
+    .hero-float {
+      animation: heroFloat 6s ease-in-out infinite;
+    }
+
+    @keyframes heroFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    .btn-loading {
+      position: relative;
+      pointer-events: none;
+      opacity: 0.9;
+    }
+
+    .btn-loading .btn-text {
+      opacity: 0;
+    }
+
+    .btn-loading .btn-progress {
+      display: flex;
+    }
+
     .card-text-glow {
       text-shadow: 0 0 12px rgba(59, 107, 214, 0.45);
     }
@@ -150,7 +173,7 @@
   <!-- HERO -->
   <section class="hero-panel text-white pt-24 md:pt-32 pb-20">
     <div class="container mx-auto text-center px-4">
-      <h1 class="text-3xl md:text-4xl font-bold mb-6">Blueprint Diagnostic: escala y blinda tu empresa con IA y Ciberseguridad en 15 días o menos</h1>
+      <h1 class="text-3xl md:text-4xl font-bold mb-6 hero-float">Blueprint Diagnostic: escala y blinda tu empresa con IA y Ciberseguridad en 15 días o menos</h1>
       <p class="text-sm md:text-base text-slate-200 mb-3">Diagnóstico estratégico + técnico en 15 días.</p>
       <p class="text-base md:text-lg mb-8">Accede a un diagnóstico técnico y estratégico para identificar riesgos, oportunidades de IA y crecimiento.</p>
       <a href="#formulario" class="bg-brand bg-brand-hover btn-glow px-6 py-3 rounded-lg font-semibold transition">Solicitar Blueprint Diagnostic</a>
@@ -247,7 +270,13 @@
         <input name="email" type="email" placeholder="Email" required class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded">
         <input name="telefono" type="tel" placeholder="Teléfono" class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded">
         <textarea name="mejora" placeholder="Qué te gustaría mejorar con IA?" class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded"></textarea>
-        <button class="w-full bg-brand bg-brand-hover btn-glow text-white py-3 rounded font-semibold transition">Quiero que me contacten</button>
+        <button id="submitBtn" class="w-full bg-brand bg-brand-hover btn-glow text-white py-3 rounded font-semibold transition">
+          <span class="btn-text">Quiero que me contacten</span>
+          <span class="btn-progress hidden items-center justify-center gap-2">
+            <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent"></span>
+            Enviando...
+          </span>
+        </button>
       </form>
       <div id="formStatus" class="hidden mt-4 rounded-xl border border-white/10 bg-white/10 px-5 py-4 text-center">
         <p class="font-semibold text-white">Gracias. Recibimos tu solicitud.</p>
@@ -324,12 +353,20 @@
     document.addEventListener("DOMContentLoaded", function() {
       const form = document.getElementById("leadForm");
       const status = document.getElementById("formStatus");
+      const submitBtn = document.getElementById("submitBtn");
       if (!form) return;
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const formData = new FormData(form);
         const body = new URLSearchParams(formData);
+
+        if (submitBtn) {
+          submitBtn.classList.add("btn-loading");
+          submitBtn.setAttribute("disabled", "disabled");
+          const progress = submitBtn.querySelector(".btn-progress");
+          if (progress) progress.classList.remove("hidden");
+        }
 
         try {
           const response = await fetch(form.action, {
@@ -347,6 +384,13 @@
         } catch (_) {
           status.classList.remove("hidden");
           status.innerHTML = "<p class=\"font-semibold text-white\">No pudimos enviar tu solicitud.</p><p class=\"text-sm text-slate-200\">Por favor intenta nuevamente en unos minutos.</p>";
+        } finally {
+          if (submitBtn) {
+            submitBtn.classList.remove("btn-loading");
+            submitBtn.removeAttribute("disabled");
+            const progress = submitBtn.querySelector(".btn-progress");
+            if (progress) progress.classList.add("hidden");
+          }
         }
       });
     });
