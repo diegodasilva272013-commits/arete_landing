@@ -326,11 +326,15 @@
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const formData = new FormData(form);
+        const body = new URLSearchParams(formData);
 
         try {
           const response = await fetch(form.action, {
             method: "POST",
-            body: formData
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body
           });
 
           if (!response.ok) throw new Error("Submission failed");
