@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blueprint Diagnostic</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --brand-primary: #3b6bd6;
+      --brand-primary-dark: #2f5cc2;
+      --brand-dark: #0b1b2b;
+      --brand-light: #f4f6fb;
+    }
+
+    .text-brand { color: var(--brand-primary); }
+    .text-brand-dark { color: var(--brand-dark); }
+    .bg-brand { background-color: var(--brand-primary); }
+    .bg-brand-dark { background-color: var(--brand-dark); }
+    .bg-brand-light { background-color: var(--brand-light); }
+    .bg-brand-hover:hover { background-color: var(--brand-primary-dark); }
+    .hover-text-brand:hover { color: var(--brand-primary); }
+
+    .glass-card {
+      background: rgba(12, 22, 38, 0.7);
+      border: 1px solid rgba(59, 107, 214, 0.45);
+      box-shadow: 0 16px 40px rgba(5, 12, 22, 0.55), 0 0 24px rgba(59, 107, 214, 0.22);
+      backdrop-filter: blur(10px);
+    }
+
+    .glass-card.light {
+      background: rgba(18, 32, 52, 0.55);
+      border: 1px solid rgba(59, 107, 214, 0.3);
+      box-shadow: 0 12px 32px rgba(5, 12, 22, 0.4), 0 0 20px rgba(59, 107, 214, 0.2);
+    }
+
+    .section-glow {
+      box-shadow: inset 0 1px 0 rgba(59, 107, 214, 0.45), 0 0 40px rgba(59, 107, 214, 0.12);
+    }
+
+    .bg-gradient-main {
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(59, 107, 214, 0.2), transparent 60%),
+        radial-gradient(900px 500px at 80% 0%, rgba(59, 107, 214, 0.16), transparent 60%),
+        linear-gradient(180deg, #0b1b2b 0%, #0a1625 100%);
+    }
+
+    .starfield::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      background-image:
+        radial-gradient(1px 1px at 15% 20%, rgba(255,255,255,0.7) 0, transparent 60%),
+        radial-gradient(1px 1px at 25% 60%, rgba(255,255,255,0.6) 0, transparent 60%),
+        radial-gradient(1px 1px at 45% 35%, rgba(255,255,255,0.55) 0, transparent 60%),
+        radial-gradient(1px 1px at 65% 25%, rgba(255,255,255,0.65) 0, transparent 60%),
+        radial-gradient(1px 1px at 80% 70%, rgba(255,255,255,0.6) 0, transparent 60%),
+        radial-gradient(1px 1px at 30% 85%, rgba(255,255,255,0.5) 0, transparent 60%),
+        radial-gradient(1px 1px at 70% 90%, rgba(255,255,255,0.5) 0, transparent 60%),
+        radial-gradient(1px 1px at 90% 40%, rgba(255,255,255,0.55) 0, transparent 60%);
+      background-size: 400px 400px, 450px 450px, 500px 500px, 520px 520px, 560px 560px, 600px 600px, 640px 640px, 700px 700px;
+      opacity: 0.9;
+      mix-blend-mode: screen;
+    }
+
+    .section-panel {
+      background:
+        radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.25) 0, transparent 60%),
+        radial-gradient(1px 1px at 80% 30%, rgba(255,255,255,0.2) 0, transparent 60%),
+        radial-gradient(1px 1px at 30% 70%, rgba(255,255,255,0.2) 0, transparent 60%),
+        linear-gradient(180deg, rgba(12, 22, 38, 0.7) 0%, rgba(10, 18, 32, 0.82) 100%);
+      border-top: 1px solid rgba(59, 107, 214, 0.16);
+      border-bottom: 1px solid rgba(59, 107, 214, 0.1);
+    }
+
+    .hero-panel {
+      background:
+        radial-gradient(1px 1px at 15% 25%, rgba(255,255,255,0.3) 0, transparent 60%),
+        radial-gradient(1px 1px at 70% 40%, rgba(255,255,255,0.25) 0, transparent 60%),
+        linear-gradient(180deg, rgba(8, 24, 48, 0.75) 0%, rgba(10, 22, 37, 0.85) 100%);
+    }
+
+    .title-accent {
+      position: relative;
+      display: inline-block;
+    }
+
+    .title-accent::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: -10px;
+      width: 60%;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(59, 107, 214, 0.9), transparent);
+      box-shadow: 0 0 12px rgba(59, 107, 214, 0.6);
+    }
+
+    .btn-glow {
+      box-shadow: 0 10px 22px rgba(59, 107, 214, 0.35), 0 0 18px rgba(59, 107, 214, 0.35);
+      border: 1px solid rgba(120, 160, 255, 0.4);
+    }
+
+    .btn-glow:hover {
+      box-shadow: 0 14px 30px rgba(59, 107, 214, 0.45), 0 0 26px rgba(59, 107, 214, 0.55);
+    }
+
+    .card-text-glow {
+      text-shadow: 0 0 12px rgba(59, 107, 214, 0.45);
+    }
+  </style>
+  <script>
+    function toggleMenu() {
+      document.getElementById('mobileMenu').classList.toggle('hidden');
+    }
+  </script>
+</head>
+<body class="font-sans bg-brand-dark text-slate-100 text-base md:text-[17px] leading-relaxed bg-gradient-main relative">
+
+  <canvas id="stars" class="fixed inset-0 w-full h-full pointer-events-none z-0"></canvas>
+
+  <main class="relative z-10">
+  <!-- HEADER / NAV -->
+  <header class="bg-white/80 text-brand-dark fixed w-full z-50 shadow-sm backdrop-blur">
+    <div class="container mx-auto flex justify-between items-center py-4 px-4 md:px-0">
+      <a href="#" class="flex items-center">
+        <img src="assets/arete_logo_lockup.png.png" alt="Areté Soluciones" class="h-11 md:h-12 w-auto" />
+      </a>
+      <nav class="hidden md:flex space-x-6">
+        <a href="#beneficios" class="text-brand-dark hover-text-brand">Beneficios</a>
+        <a href="#obtienes" class="text-brand-dark hover-text-brand">Qué obtienes</a>
+        <a href="#esparati" class="text-brand-dark hover-text-brand">¿Es para ti?</a>
+        <a href="#formulario" class="text-brand-dark hover-text-brand">Contacto</a>
+      </nav>
+      <button class="md:hidden" onclick="toggleMenu()">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+    </div>
+    <div id="mobileMenu" class="md:hidden hidden bg-white/95 px-4 py-2 border-t border-gray-100">
+      <a href="#beneficios" class="block py-2 text-brand-dark hover-text-brand">Beneficios</a>
+      <a href="#obtienes" class="block py-2 text-brand-dark hover-text-brand">Qué obtienes</a>
+      <a href="#esparati" class="block py-2 text-brand-dark hover-text-brand">¿Es para ti?</a>
+      <a href="#formulario" class="block py-2 text-brand-dark hover-text-brand">Contacto</a>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero-panel text-white pt-24 md:pt-32 pb-20">
+    <div class="container mx-auto text-center px-4">
+      <h1 class="text-3xl md:text-4xl font-bold mb-6">Blueprint Diagnostic: escala y blinda tu empresa con IA y Ciberseguridad en 15 días o menos</h1>
+      <p class="text-base md:text-lg mb-8">Accede a un diagnóstico técnico y estratégico para identificar riesgos, oportunidades de IA y crecimiento.</p>
+      <a href="#formulario" class="bg-brand bg-brand-hover btn-glow px-6 py-3 rounded-lg font-semibold transition">Solicitar Blueprint Diagnostic</a>
+    </div>
+  </section>
+
+  <!-- BENEFICIOS -->
+  <section id="beneficios" class="py-16 section-glow section-panel">
+    <div class="container mx-auto px-4 text-center">
+      <h2 class="text-2xl md:text-3xl font-bold mb-12 title-accent">Beneficios clave</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="glass-card p-6 rounded-xl transition duration-300 hover:shadow-lg hover:-translate-y-1 hover:scale-[1.01]">
+          <h3 class="text-lg md:text-xl font-bold mb-2 text-white">Escala sin fricción</h3>
+          <p>Identifica áreas donde la IA puede reducir costes y liberar recursos clave.</p>
+        </div>
+        <div class="glass-card p-6 rounded-xl transition duration-300 hover:shadow-lg hover:-translate-y-1 hover:scale-[1.01]">
+          <h3 class="text-lg md:text-xl font-bold mb-2 text-white">Mitiga riesgos operativos</h3>
+          <p>Detecta brechas de seguridad que podrían comprometer tu negocio.</p>
+        </div>
+        <div class="glass-card p-6 rounded-xl transition duration-300 hover:shadow-lg hover:-translate-y-1 hover:scale-[1.01]">
+          <h3 class="text-lg md:text-xl font-bold mb-2 text-white">Toma decisiones informadas</h3>
+          <p>Recibe un roadmap accionable diseñado por expertos.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUÉ OBTIENES -->
+  <section id="obtienes" class="py-16 section-glow section-panel">
+    <div class="container mx-auto px-4 max-w-3xl text-center">
+      <h2 class="text-2xl md:text-3xl font-bold mb-8 title-accent">¿Qué obtienes con Blueprint Diagnostic?</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 text-left">
+        <div class="glass-card light rounded-xl p-5 transition duration-300 hover:-translate-y-1 hover:shadow-lg">
+          <p class="text-[15px] md:text-base font-semibold text-white card-text-glow">🧭 Auditoría de procesos clave y herramientas actuales</p>
+        </div>
+        <div class="glass-card light rounded-xl p-5 transition duration-300 hover:-translate-y-1 hover:shadow-lg">
+          <p class="text-[15px] md:text-base font-semibold text-white card-text-glow">🛡️ Evaluación de ciberseguridad completa</p>
+        </div>
+        <div class="glass-card light rounded-xl p-5 transition duration-300 hover:-translate-y-1 hover:shadow-lg">
+          <p class="text-[15px] md:text-base font-semibold text-white card-text-glow">🤖 Análisis de oportunidades para integrar IA</p>
+        </div>
+        <div class="glass-card light rounded-xl p-5 transition duration-300 hover:-translate-y-1 hover:shadow-lg">
+          <p class="text-[15px] md:text-base font-semibold text-white card-text-glow">🗺️ Roadmap visual y técnico personalizado</p>
+        </div>
+        <div class="glass-card light rounded-xl p-5 transition duration-300 hover:-translate-y-1 hover:shadow-lg">
+          <p class="text-[15px] md:text-base font-semibold text-white card-text-glow">👤 Reunión 1:1 con el CTO</p>
+        </div>
+        <div class="glass-card light rounded-xl p-5 transition duration-300 hover:-translate-y-1 hover:shadow-lg">
+          <p class="text-[15px] md:text-base font-semibold text-white card-text-glow">📄 Informe técnico detallado con pasos siguientes</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ES PARA TI -->
+  <section id="esparati" class="py-16 section-glow section-panel">
+    <div class="container mx-auto px-4 text-center">
+      <h2 class="text-2xl md:text-3xl font-bold mb-6 title-accent">¿Es para ti?</h2>
+      <p class="text-base md:text-lg mb-4">CEOs, CTOs, directores de innovación y empresas con +1M€/año.</p>
+      <p class="text-base md:text-lg">No recomendado para empresas en fase pre-semilla o sin equipo técnico.</p>
+    </div>
+  </section>
+
+  <!-- TESTIMONIOS -->
+  <section class="py-16 section-glow section-panel">
+    <div class="container mx-auto px-4 text-center">
+      <div class="flex flex-col items-center gap-4 mb-6">
+        <img src="assets/logo-arete.png.png" alt="Areté" class="h-10 w-auto" />
+        <h2 class="text-2xl md:text-3xl font-bold title-accent">Lo que dicen nuestros clientes</h2>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="glass-card p-6 rounded-xl">
+          <p class="italic">"En solo dos semanas teníamos una hoja de ruta clara para automatizar varias áreas. 100% recomendado."</p>
+          <span class="block mt-4 font-bold">— Carlos Esteban, CEO</span>
+        </div>
+        <div class="glass-card p-6 rounded-xl">
+          <p class="italic">"Divisual identificó vulnerabilidades críticas que otros consultores pasaron por alto."</p>
+          <span class="block mt-4 font-bold">— Hernan Laria, CEO</span>
+        </div>
+        <div class="glass-card p-6 rounded-xl">
+          <p class="italic">"El roadmap de IA que nos dieron fue clave para cerrar nuestra ronda de inversión."</p>
+          <span class="block mt-4 font-bold">— Ana Mari Padilla, Founder</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORMULARIO -->
+  <section id="formulario" class="py-16 section-glow section-panel">
+    <div class="container mx-auto px-4 max-w-xl">
+      <h2 class="text-2xl md:text-3xl font-bold text-center mb-6 title-accent">Solicita tu Blueprint Diagnostic</h2>
+      <form class="space-y-4" action="/api/submit" method="POST">
+        <input name="nombre" type="text" placeholder="Nombre completo" required class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded">
+        <input name="empresa" type="text" placeholder="Empresa" class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded">
+        <input name="cargo" type="text" placeholder="Cargo" class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded">
+        <input name="email" type="email" placeholder="Email" required class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded">
+        <input name="telefono" type="tel" placeholder="Teléfono" class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded">
+        <textarea name="mejora" placeholder="Qué te gustaría mejorar con IA?" class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded"></textarea>
+        <button class="w-full bg-brand bg-brand-hover btn-glow text-white py-3 rounded font-semibold transition">Quiero que me contacten</button>
+      </form>
+      <p class="text-center text-sm mt-4">Limitado a 3 empresas por mes. Te responderemos en 48h.</p>
+    </div>
+  </section>
+
+  <!-- GARANTÍA -->
+  <section class="py-8 section-glow text-center">
+    <p class="text-base md:text-lg font-semibold">Si contratas Areté Nexus™ en 30 días, descontamos el 100% del coste del Blueprint Diagnostic.</p>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="bg-brand-dark text-white py-6 text-center">
+    <p>© 2025 Areté Soluciones | <a href="#" class="underline">Política de Privacidad</a></p>
+  </footer>
+  </main>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const canvas = document.getElementById('stars');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+
+      resize();
+
+      const stars = [];
+      for (let i = 0; i < 160; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          r: Math.random() * 1.6 + 0.2,
+          alpha: Math.random() * 0.8 + 0.1,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: (Math.random() - 0.5) * 0.3
+        });
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        stars.forEach(s => {
+          ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.fill();
+
+          s.alpha += (Math.random() - 0.5) * 0.02;
+          if (s.alpha < 0.05) s.alpha = 0.05;
+          if (s.alpha > 0.9) s.alpha = 0.9;
+
+          s.x += s.vx;
+          s.y += s.vy;
+          if (s.x < 0) s.x = canvas.width;
+          if (s.x > canvas.width) s.x = 0;
+          if (s.y < 0) s.y = canvas.height;
+          if (s.y > canvas.height) s.y = 0;
+        });
+        requestAnimationFrame(draw);
+      }
+
+      draw();
+      window.addEventListener('resize', resize);
+    });
+  </script>
+</body>
+</html>
