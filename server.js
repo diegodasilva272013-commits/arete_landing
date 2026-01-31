@@ -23,12 +23,12 @@ function buildPdfBuffer(data) {
 
     const logoPath = path.join(__dirname, "assets", "arete_logo_lockup.png.png");
     try {
-      doc.image(logoPath, 50, 40, { width: 180 });
+      doc.image(logoPath, 50, 40, { width: 140 });
     } catch (_) {
       // If logo fails, continue without it.
     }
 
-    doc.moveDown(2);
+    doc.moveDown(5);
     doc.fillColor("#0b1b2b").fontSize(20).text("Blueprint Diagnostic", { align: "left" });
     doc.fillColor("#3b6bd6").fontSize(12).text("Areté Soluciones", { align: "left" });
 

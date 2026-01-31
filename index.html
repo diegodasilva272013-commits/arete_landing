@@ -238,7 +238,7 @@
   <section id="formulario" class="py-16 section-glow section-panel">
     <div class="container mx-auto px-4 max-w-xl">
       <h2 class="text-2xl md:text-3xl font-bold text-center mb-6 title-accent">Solicita tu Blueprint Diagnostic</h2>
-      <form class="space-y-4" action="/api/submit" method="POST">
+      <form id="leadForm" class="space-y-4" action="/api/submit" method="POST">
         <input name="nombre" type="text" placeholder="Nombre completo" required class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded">
         <input name="empresa" type="text" placeholder="Empresa" class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded">
         <input name="cargo" type="text" placeholder="Cargo" class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded">
@@ -247,6 +247,10 @@
         <textarea name="mejora" placeholder="Qué te gustaría mejorar con IA?" class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded"></textarea>
         <button class="w-full bg-brand bg-brand-hover btn-glow text-white py-3 rounded font-semibold transition">Quiero que me contacten</button>
       </form>
+      <div id="formStatus" class="hidden mt-4 rounded-xl border border-white/10 bg-white/10 px-5 py-4 text-center">
+        <p class="font-semibold text-white">Gracias. Recibimos tu solicitud.</p>
+        <p class="text-sm text-slate-200">Un especialista de Areté Soluciones se pondrá en contacto a la brevedad.</p>
+      </div>
       <p class="text-center text-sm mt-4">Limitado a 3 empresas por mes. Te responderemos en 48h.</p>
     </div>
   </section>
@@ -311,6 +315,33 @@
 
       draw();
       window.addEventListener('resize', resize);
+    });
+  </script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const form = document.getElementById("leadForm");
+      const status = document.getElementById("formStatus");
+      if (!form) return;
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(form);
+
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            body: formData
+          });
+
+          if (!response.ok) throw new Error("Submission failed");
+
+          form.reset();
+          status.classList.remove("hidden");
+        } catch (_) {
+          status.classList.remove("hidden");
+          status.innerHTML = "<p class=\"font-semibold text-white\">No pudimos enviar tu solicitud.</p><p class=\"text-sm text-slate-200\">Por favor intenta nuevamente en unos minutos.</p>";
+        }
+      });
     });
   </script>
 </body>
