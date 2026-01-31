@@ -107,12 +107,12 @@
     }
 
     .hero-float {
-      animation: heroFloat 6s ease-in-out infinite;
+      animation: heroFloat 4s ease-in-out infinite;
     }
 
     @keyframes heroFloat {
       0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-4px); }
+      50% { transform: translateY(-6px); }
     }
 
     .btn-loading {
@@ -356,8 +356,22 @@
       const submitBtn = document.getElementById("submitBtn");
       if (!form) return;
 
+      const requiredFields = form.querySelectorAll("[required]");
+      requiredFields.forEach((field) => {
+        field.addEventListener("invalid", (event) => {
+          event.target.setCustomValidity("Debes completar este campo.");
+        });
+        field.addEventListener("input", (event) => {
+          event.target.setCustomValidity("");
+        });
+      });
+
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
         const formData = new FormData(form);
         const body = new URLSearchParams(formData);
 
