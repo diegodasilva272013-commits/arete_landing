@@ -129,6 +129,34 @@
       display: flex;
     }
 
+    .progress-track {
+      position: relative;
+      width: 180px;
+      height: 6px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.2);
+      overflow: hidden;
+      box-shadow: inset 0 0 6px rgba(59, 107, 214, 0.35);
+    }
+
+    .progress-bar {
+      position: absolute;
+      left: -40%;
+      top: 0;
+      height: 100%;
+      width: 40%;
+      background: linear-gradient(90deg, rgba(59, 107, 214, 0.2), rgba(59, 107, 214, 0.9), rgba(59, 107, 214, 0.2));
+      animation: progressMove 1.2s ease-in-out infinite;
+      box-shadow: 0 0 12px rgba(59, 107, 214, 0.6);
+      border-radius: 9999px;
+    }
+
+    @keyframes progressMove {
+      0% { left: -40%; }
+      50% { left: 30%; }
+      100% { left: 100%; }
+    }
+
     .card-text-glow {
       text-shadow: 0 0 12px rgba(59, 107, 214, 0.45);
     }
@@ -187,15 +215,15 @@
       <h2 class="text-2xl md:text-3xl font-bold mb-12 title-accent">Beneficios clave</h2>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div class="glass-card p-6 rounded-xl transition duration-300 hover:shadow-lg hover:-translate-y-1 hover:scale-[1.01]">
-          <h3 class="text-lg md:text-xl font-bold mb-2 text-white">Escala sin fricción</h3>
+          <h3 class="text-lg md:text-xl font-bold mb-2 text-white">⚡ Escala sin fricción</h3>
           <p>Identifica áreas donde la IA puede reducir costes y liberar recursos clave.</p>
         </div>
         <div class="glass-card p-6 rounded-xl transition duration-300 hover:shadow-lg hover:-translate-y-1 hover:scale-[1.01]">
-          <h3 class="text-lg md:text-xl font-bold mb-2 text-white">Mitiga riesgos operativos</h3>
+          <h3 class="text-lg md:text-xl font-bold mb-2 text-white">🛡️ Mitiga riesgos operativos</h3>
           <p>Detecta brechas de seguridad que podrían comprometer tu negocio.</p>
         </div>
         <div class="glass-card p-6 rounded-xl transition duration-300 hover:shadow-lg hover:-translate-y-1 hover:scale-[1.01]">
-          <h3 class="text-lg md:text-xl font-bold mb-2 text-white">Toma decisiones informadas</h3>
+          <h3 class="text-lg md:text-xl font-bold mb-2 text-white">📊 Toma decisiones informadas</h3>
           <p>Recibe un roadmap accionable diseñado por expertos.</p>
         </div>
       </div>
@@ -233,7 +261,7 @@
   <section id="esparati" class="py-16 section-glow section-panel">
     <div class="container mx-auto px-4 text-center">
       <h2 class="text-2xl md:text-3xl font-bold mb-6 title-accent">¿Es para ti?</h2>
-      <p class="text-base md:text-lg mb-4">CEOs, CTOs, directores de innovación y empresas con +1M€/año.</p>
+      <p class="text-base md:text-lg mb-4">CEOs, CTOs, directores de innovación y empresas con +20.000 USD / año.</p>
       <p class="text-base md:text-lg">No recomendado para empresas en fase pre-semilla o sin equipo técnico.</p>
     </div>
   </section>
@@ -272,9 +300,9 @@
         <textarea name="mejora" placeholder="Qué te gustaría mejorar con IA?" class="w-full border border-white/10 bg-white/95 text-gray-900 px-4 py-2 rounded"></textarea>
         <button id="submitBtn" class="w-full bg-brand bg-brand-hover btn-glow text-white py-3 rounded font-semibold transition">
           <span class="btn-text">Quiero que me contacten</span>
-          <span class="btn-progress hidden items-center justify-center gap-2">
-            <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent"></span>
-            Enviando...
+          <span class="btn-progress hidden items-center justify-center gap-3">
+            <span>Enviando...</span>
+            <span class="progress-track"><span class="progress-bar"></span></span>
           </span>
         </button>
       </form>
