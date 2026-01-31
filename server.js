@@ -28,11 +28,32 @@ function buildPdfBuffer(data) {
       // If logo fails, continue without it.
     }
 
-    doc.moveDown(5);
-    doc.fillColor("#0b1b2b").fontSize(20).text("Blueprint Diagnostic", { align: "left" });
-    doc.fillColor("#3b6bd6").fontSize(12).text("Areté Soluciones", { align: "left" });
+    const companyLine = data.empresa ? `Empresa: ${data.empresa}` : "Empresa: -";
+    const dateLine = `Fecha: ${new Date().toLocaleDateString("es-ES")}`;
 
-    doc.moveDown();
+    doc
+      .fillColor("#0b1b2b")
+      .fontSize(18)
+      .text("Blueprint Diagnostic", 50, 125, { align: "left" });
+
+    doc
+      .fillColor("#3b6bd6")
+      .fontSize(11)
+      .text("Areté Soluciones", 50, 150, { align: "left" });
+
+    doc
+      .fillColor("#0b1b2b")
+      .fontSize(10)
+      .text(companyLine, 380, 130, { align: "left" })
+      .text(dateLine, 380, 145, { align: "left" });
+
+    doc
+      .moveTo(50, 175)
+      .lineTo(545, 175)
+      .strokeColor("#e5e7eb")
+      .stroke();
+
+    doc.moveDown(4);
     doc.fillColor("#111827").fontSize(12).text("Datos de contacto:");
 
     const fields = [
