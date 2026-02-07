@@ -80,194 +80,181 @@ function buildPdfBuffer(data) {
   });
 }
 
-function requestUrl(url, method = "GET", body = "") {
+function requestUrl(url, method = "GET", body = "", redirectsLeft = 3) {
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
     const client = parsedUrl.protocol === "https:" ? https : http;
-    const options = {
-      method,
-      hostname: parsedUrl.hostname,
-      port: parsedUrl.port || (parsedUrl.protocol === "https:" ? 443 : 80),
-      path: `${parsedUrl.pathname}${parsedUrl.search}`,
-      headers: {
-        "Content-Type": "application/json"
-      }
+
+    const headers = {
+      Accept: "application/json",
+      "User-Agent": "arete-backend/1.0"
     };
 
-    if (body) {
-      options.headers["Content-Length"] = Buffer.byteLength(body);
-    }
+    if (method !== "GET" && body) headers["Content-Type"] = "application/json";
+    if (body) headers["Content-Length"] = Buffer.byteLength(body);
 
-    const req = client.request(options, (res) => {
-      let data = "";
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
-      res.on("end", () => {
-        resolve({
-          ok: res.statusCode >= 200 && res.statusCode < 300,
-          status: res.statusCode,
-          body: data
-        });
-      });
-    });
+    const req = client.request(
+      {
+        method,
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (parsedUrl.protocol === "https:" ? 443 : 80),
+        path: `${parsedUrl.pathname}${parsedUrl.search}`,
+        headers
+      },
+      (res) => {
+        if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location && redirectsLeft > 0) {
+          const nextUrl = new URL(res.headers.location, parsedUrl).toString();
+          res.resume();
+          return resolve(requestUrl(nextUrl, method, body, redirectsLeft - 1));
+        }
 
-    req.setTimeout(15000, () => {
-      req.destroy(new Error("Request timeout"));
-    });
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () =>
+          resolve({
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            body: data
+          })
+        );
+      }
+    );
 
+    req.setTimeout(15000, () => req.destroy(new Error("Request timeout")));
     req.on("error", reject);
 
-    if (body) {
-      req.write(body);
-    }
-
+    if (body) req.write(body);
     req.end();
   });
 }
 
 app.post("/api/submit", async (req, res) => {
+  const ct = req.headers["content-type"] || "";
+  console.log("CT:", ct);
+  console.log("BODY:", req.body);
+
+  if (!req.body || Object.keys(req.body).length === 0) {
+    return res.status(400).json({
+      message: "ERROR: el backend recibió el formulario VACÍO (body vacío). Revisá el envío del front (Content-Type).",
+      version: APP_VERSION
+    });
+  }
+
   const { nombre, empresa, cargo, email, telefono, mejora } = req.body;
 
   if (!nombre || !email) {
-    return res.status(400).json({ message: "Nombre y email son requeridos." });
+    return res.status(400).json({
+      message: "ERROR: Nombre y email son requeridos (faltan o llegaron vacíos).",
+      version: APP_VERSION,
+      receivedKeys: Object.keys(req.body)
+    });
   }
 
-  try {
-    const webhookUrl = "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook/arete-lead";
+  const webhookUrl =
+    process.env.WEBHOOK_URL || "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook/arete-lead/";
 
-    const payload = {
-      nombre,
-      empresa: empresa || "",
-      cargo: cargo || "",
-      email,
-      telefono: telefono || "",
-      mejora: mejora || "",
-      source: "blueprint-diagnostic",
-      submittedAt: new Date().toISOString()
-    };
+  const payload = {
+    nombre,
+    empresa: empresa || "",
+    cargo: cargo || "",
+    email,
+    telefono: telefono || "",
+    mejora: mejora || "",
+    source: "blueprint-diagnostic",
+    submittedAt: new Date().toISOString()
+  };
 
-    const webhookMethod = "GET";
+  const buildGetUrl = () => {
+    const url = new URL(webhookUrl);
+    Object.entries(payload).forEach(([k, v]) => url.searchParams.set(k, String(v ?? "")));
+    return url.toString();
+  };
 
-    const buildGetUrl = () => {
-      const url = new URL(webhookUrl);
-      Object.entries(payload).forEach(([key, value]) => {
-        url.searchParams.set(key, String(value ?? ""));
-      });
-      return url.toString();
-    };
+  const sendWebhook = async () => {
+    const url = buildGetUrl();
+    console.log("WEBHOOK URL length:", url.length);
+    console.log("WEBHOOK URL:", url);
 
-    let response;
+    if (url.length > 4000) {
+      return { ok: false, status: 414, body: "URI_TOO_LONG: el GET es demasiado largo (campo 'mejora' suele causar esto)." };
+    }
 
-    const sendWebhook = async () => {
-      if (webhookMethod === "GET") {
-        return requestUrl(buildGetUrl(), "GET");
-      }
+    const r = await requestUrl(url, "GET");
+    console.log("WEBHOOK RES:", r.status, (r.body || "").slice(0, 200));
+    return r;
+  };
 
-      if (webhookMethod === "POST") {
-        return requestUrl(webhookUrl, "POST", JSON.stringify(payload));
-      }
+  const sendEmail = async () => {
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      throw new Error("SMTP no configurado (faltan SMTP_HOST/SMTP_USER/SMTP_PASS).");
+    }
 
-      const postResponse = await requestUrl(webhookUrl, "POST", JSON.stringify(payload));
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 465),
+      secure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
 
-      if (postResponse.ok) return postResponse;
+    const pdfBuffer = await buildPdfBuffer(payload);
 
-      return requestUrl(buildGetUrl(), "GET");
-    };
+    const mailTo = process.env.MAIL_TO || "diegodasilva272013@gmail.com";
+    const from = process.env.MAIL_FROM || process.env.SMTP_USER;
 
-    const sendEmail = async () => {
-      if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-        return { skipped: true };
-      }
+    await transporter.sendMail({
+      from,
+      to: mailTo,
+      subject: "Nuevo Blueprint Diagnostic",
+      text:
+        `Nuevo lead:\n\nNombre: ${nombre}\nEmpresa: ${empresa}\nCargo: ${cargo}\nEmail: ${email}\nTeléfono: ${telefono}\nMejora con IA: ${mejora}`,
+      attachments: [{ filename: "blueprint-diagnostic.pdf", content: pdfBuffer }]
+    });
 
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT || 465),
-        secure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
-      });
-
-      const pdfBuffer = await buildPdfBuffer({ nombre, empresa, cargo, email, telefono, mejora });
-
-      const mailTo = process.env.MAIL_TO || "diegodasilva272013@gmail.com";
-      const from = process.env.MAIL_FROM || process.env.SMTP_USER;
-
-      const mail = {
+    if (String(process.env.SEND_COPY_TO_USER).toLowerCase() === "true" && email) {
+      await transporter.sendMail({
         from,
-        to: mailTo,
-        subject: "Nuevo Blueprint Diagnostic",
-        text: `Nuevo lead:\n\nNombre: ${nombre}\nEmpresa: ${empresa}\nCargo: ${cargo}\nEmail: ${email}\nTeléfono: ${telefono}\nMejora con IA: ${mejora}`,
-        attachments: [
-          {
-            filename: "blueprint-diagnostic.pdf",
-            content: pdfBuffer
-          }
-        ]
-      };
-
-      await transporter.sendMail(mail);
-
-      if (String(process.env.SEND_COPY_TO_USER).toLowerCase() === "true" && email) {
-        await transporter.sendMail({
-          from,
-          to: email,
-          subject: "Tu Blueprint Diagnostic",
-          text: "Gracias por tu solicitud. Adjuntamos tu Blueprint Diagnostic.",
-          attachments: [
-            {
-              filename: "blueprint-diagnostic.pdf",
-              content: pdfBuffer
-            }
-          ]
-        });
-      }
-
-      return { skipped: false };
-    };
-
-    const [webhookResult, emailResult] = await Promise.allSettled([
-      sendWebhook(),
-      sendEmail()
-    ]);
-
-    const webhookOk =
-      webhookResult.status === "fulfilled" && webhookResult.value && webhookResult.value.ok;
-    const emailOk = emailResult.status === "fulfilled";
-
-    if (!webhookOk) {
-      console.error("Webhook error", webhookResult.status === "rejected" ? webhookResult.reason : webhookResult.value);
-    }
-
-    if (!emailOk) {
-      console.error("Email error", emailResult.status === "rejected" ? emailResult.reason : emailResult.value);
-    }
-
-    if (!webhookOk && !emailOk) {
-      return res.status(502).json({
-        message: "Error enviando el formulario.",
-        version: APP_VERSION,
-        webhookOk,
-        emailOk
+        to: email,
+        subject: "Tu Blueprint Diagnostic",
+        text: "Gracias por tu solicitud. Adjuntamos tu Blueprint Diagnostic.",
+        attachments: [{ filename: "blueprint-diagnostic.pdf", content: pdfBuffer }]
       });
     }
 
-    return res.json({
-      message: "Enviado correctamente.",
+    return { ok: true };
+  };
+
+  const [wh, em] = await Promise.allSettled([sendWebhook(), sendEmail()]);
+
+  const webhookOk = wh.status === "fulfilled" && wh.value?.ok === true;
+  const emailOk = em.status === "fulfilled";
+
+  const webhookError = wh.status === "rejected"
+    ? String(wh.reason?.message || wh.reason)
+    : webhookOk
+      ? null
+      : `status=${wh.value?.status} body=${String(wh.value?.body || "").slice(0, 200)}`;
+
+  const emailError = em.status === "rejected"
+    ? String(em.reason?.message || em.reason)
+    : null;
+
+  if (!webhookOk || !emailOk) {
+    return res.status(502).json({
+      message: `ERROR: ${!webhookOk ? "falló WEBHOOK" : ""}${(!webhookOk && !emailOk) ? " y " : ""}${!emailOk ? "falló EMAIL" : ""}.`,
       version: APP_VERSION,
       webhookOk,
-      emailOk
-    });
-  } catch (error) {
-    console.error("Submit error", error);
-    return res.status(500).json({
-      message: "Error enviando el formulario.",
-      version: APP_VERSION,
-      error: error?.message || "unknown"
+      emailOk,
+      webhookError,
+      emailError
     });
   }
+
+  return res.status(200).json({
+    message: "OK: webhook y email enviados.",
+    version: APP_VERSION,
+    webhookOk: true,
+    emailOk: true
+  });
 });
 
 app.listen(PORT, () => {
