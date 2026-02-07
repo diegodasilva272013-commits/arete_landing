@@ -460,12 +460,29 @@
             },
             body
           });
+          const data = await response.json().catch(() => ({}));
 
-          if (!response.ok) throw new Error("Submission failed");
+          if (!response.ok) {
+            const message = data.message || "No pudimos enviar tu solicitud.";
+            const details = [data.webhookError, data.emailError].filter(Boolean).join(" | ");
+            status.classList.remove("hidden");
+            status.innerHTML = `
+              <p class="font-semibold text-white">${message}</p>
+              ${details ? `<p class="text-xs text-slate-200 mt-1">${details}</p>` : ""}
+            `;
+            throw new Error(message);
+          }
+
           responseOk = true;
           setTimeout(() => {
             form.reset();
             status.classList.remove("hidden");
+            if (data && data.message) {
+              status.innerHTML = `
+                <p class="font-semibold text-white">${data.message}</p>
+                <p class="text-xs text-slate-200 mt-1">webhook: ${String(data.webhookOk)} | email: ${String(data.emailOk)}</p>
+              `;
+            }
             if (submitBtn) {
               submitBtn.classList.remove("btn-loading");
               submitBtn.removeAttribute("disabled");
