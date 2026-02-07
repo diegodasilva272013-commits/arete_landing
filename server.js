@@ -20,7 +20,7 @@ app.post("/api/submit", async (req, res) => {
   try {
     const webhookUrl =
       process.env.N8N_WEBHOOK_URL ||
-      "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook/arete-lead";
+      "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook-test/arete-lead";
 
     const payload = {
       nombre,
@@ -33,17 +33,53 @@ app.post("/api/submit", async (req, res) => {
       submittedAt: new Date().toISOString()
     };
 
+    const webhookMethod = (process.env.N8N_WEBHOOK_METHOD || "AUTO").toUpperCase();
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
 
-    const response = await fetch(webhookUrl, {
-      method: "POST",
+    const baseOptions = {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(payload),
       signal: controller.signal
-    });
+    };
+
+    const buildGetUrl = () => {
+      const url = new URL(webhookUrl);
+      Object.entries(payload).forEach(([key, value]) => {
+        url.searchParams.set(key, String(value ?? ""));
+      });
+      return url.toString();
+    };
+
+    let response;
+
+    if (webhookMethod === "GET") {
+      response = await fetch(buildGetUrl(), {
+        ...baseOptions,
+        method: "GET"
+      });
+    } else if (webhookMethod === "POST") {
+      response = await fetch(webhookUrl, {
+        ...baseOptions,
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+    } else {
+      response = await fetch(webhookUrl, {
+        ...baseOptions,
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        response = await fetch(buildGetUrl(), {
+          ...baseOptions,
+          method: "GET"
+        });
+      }
+    }
 
     clearTimeout(timeout);
 
