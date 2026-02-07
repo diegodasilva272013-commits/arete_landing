@@ -333,7 +333,6 @@
         <p class="font-semibold text-white">Gracias. Recibimos tu solicitud.</p>
         <p class="text-sm text-slate-200">Un especialista de Areté Soluciones se pondrá en contacto a la brevedad.</p>
       </div>
-      <div id="webhookStatus" class="hidden mt-4 rounded-xl border border-white/10 bg-white/10 px-5 py-4 text-left text-xs text-slate-200"></div>
       <p class="text-center text-sm mt-4">Inversión estimada del diagnóstico: USD 1.500 – 4.000.</p>
       <p class="text-center text-sm mt-2">Limitado a 3 empresas por mes. Te responderemos en 48h.</p>
     </div>
@@ -405,64 +404,8 @@
     document.addEventListener("DOMContentLoaded", function() {
       const form = document.getElementById("leadForm");
       const status = document.getElementById("formStatus");
-      const webhookStatus = document.getElementById("webhookStatus");
       const submitBtn = document.getElementById("submitBtn");
       if (!form) return;
-
-      async function sendWebhookManual(formData) {
-        const nombre = String(formData.get("nombre") || "");
-        const empresa = String(formData.get("empresa") || "");
-        const cargo = String(formData.get("cargo") || "");
-        const email = String(formData.get("email") || "");
-        const telefono = String(formData.get("telefono") || "");
-        const mejora = String(formData.get("mejora") || "");
-
-        const webhookBase = "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook/arete-lead";
-        const params = new URLSearchParams({
-          nombre,
-          empresa,
-          cargo,
-          email,
-          telefono,
-          mejora
-        });
-
-        const finalUrl = `${webhookBase}?${params.toString()}`;
-
-        if (webhookStatus) {
-          webhookStatus.classList.remove("hidden");
-          webhookStatus.innerHTML = `
-            <p><strong>Webhook (GET)</strong></p>
-            <p><strong>URL:</strong> ${finalUrl}</p>
-            <p><strong>Payload:</strong> nombre=${nombre} | empresa=${empresa} | cargo=${cargo} | email=${email} | telefono=${telefono} | mejora=${mejora}</p>
-            <p><strong>Resultado:</strong> enviando...</p>
-          `;
-        }
-
-        try {
-          const response = await fetch(finalUrl, { method: "GET" });
-          const text = await response.text().catch(() => "");
-
-          if (webhookStatus) {
-            webhookStatus.innerHTML = `
-              <p><strong>Webhook (GET)</strong></p>
-              <p><strong>URL:</strong> ${finalUrl}</p>
-              <p><strong>Payload:</strong> nombre=${nombre} | empresa=${empresa} | cargo=${cargo} | email=${email} | telefono=${telefono} | mejora=${mejora}</p>
-              <p><strong>Resultado:</strong> status=${response.status} ok=${response.ok}</p>
-              <p><strong>Respuesta:</strong> ${text || "(sin cuerpo)"}</p>
-            `;
-          }
-        } catch (error) {
-          if (webhookStatus) {
-            webhookStatus.innerHTML = `
-              <p><strong>Webhook (GET)</strong></p>
-              <p><strong>URL:</strong> ${finalUrl}</p>
-              <p><strong>Payload:</strong> nombre=${nombre} | empresa=${empresa} | cargo=${cargo} | email=${email} | telefono=${telefono} | mejora=${mejora}</p>
-              <p><strong>Resultado:</strong> error=${error?.message || "unknown"}</p>
-            `;
-          }
-        }
-      }
 
       const requiredFields = form.querySelectorAll("[required]");
       requiredFields.forEach((field) => {
@@ -482,8 +425,6 @@
         }
         const formData = new FormData(form);
         const body = new URLSearchParams(formData);
-
-        await sendWebhookManual(formData);
 
         const webhookUrl = "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook/arete-lead";
         const webhookPayload = Object.fromEntries(formData.entries());
