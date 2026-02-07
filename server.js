@@ -4,6 +4,8 @@ const express = require("express");
 const path = require("path");
 const nodemailer = require("nodemailer");
 const PDFDocument = require("pdfkit");
+const http = require("http");
+const https = require("https");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -77,6 +79,52 @@ function buildPdfBuffer(data) {
   });
 }
 
+function requestUrl(url, method = "GET", body = "") {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url);
+    const client = parsedUrl.protocol === "https:" ? https : http;
+    const options = {
+      method,
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (parsedUrl.protocol === "https:" ? 443 : 80),
+      path: `${parsedUrl.pathname}${parsedUrl.search}`,
+      headers: {
+        "Content-Type": "application/json"
+      }
+    };
+
+    if (body) {
+      options.headers["Content-Length"] = Buffer.byteLength(body);
+    }
+
+    const req = client.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          body: data
+        });
+      });
+    });
+
+    req.setTimeout(15000, () => {
+      req.destroy(new Error("Request timeout"));
+    });
+
+    req.on("error", reject);
+
+    if (body) {
+      req.write(body);
+    }
+
+    req.end();
+  });
+}
+
 app.post("/api/submit", async (req, res) => {
   const { nombre, empresa, cargo, email, telefono, mejora } = req.body;
 
@@ -85,9 +133,7 @@ app.post("/api/submit", async (req, res) => {
   }
 
   try {
-    const webhookUrl =
-      process.env.N8N_WEBHOOK_URL ||
-      "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook/arete-lead";
+    const webhookUrl = "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook/arete-lead";
 
     const payload = {
       nombre,
@@ -100,17 +146,7 @@ app.post("/api/submit", async (req, res) => {
       submittedAt: new Date().toISOString()
     };
 
-    const webhookMethod = (process.env.N8N_WEBHOOK_METHOD || "GET").toUpperCase();
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-
-    const baseOptions = {
-      headers: {
-        "Content-Type": "application/json"
-      },
-      signal: controller.signal
-    };
+    const webhookMethod = "GET";
 
     const buildGetUrl = () => {
       const url = new URL(webhookUrl);
@@ -124,32 +160,18 @@ app.post("/api/submit", async (req, res) => {
 
     const sendWebhook = async () => {
       if (webhookMethod === "GET") {
-        return fetch(buildGetUrl(), {
-          ...baseOptions,
-          method: "GET"
-        });
+        return requestUrl(buildGetUrl(), "GET");
       }
 
       if (webhookMethod === "POST") {
-        return fetch(webhookUrl, {
-          ...baseOptions,
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
+        return requestUrl(webhookUrl, "POST", JSON.stringify(payload));
       }
 
-      const postResponse = await fetch(webhookUrl, {
-        ...baseOptions,
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
+      const postResponse = await requestUrl(webhookUrl, "POST", JSON.stringify(payload));
 
       if (postResponse.ok) return postResponse;
 
-      return fetch(buildGetUrl(), {
-        ...baseOptions,
-        method: "GET"
-      });
+      return requestUrl(buildGetUrl(), "GET");
     };
 
     const sendEmail = async () => {
@@ -209,8 +231,6 @@ app.post("/api/submit", async (req, res) => {
       sendWebhook(),
       sendEmail()
     ]);
-
-    clearTimeout(timeout);
 
     const webhookOk =
       webhookResult.status === "fulfilled" && webhookResult.value && webhookResult.value.ok;
