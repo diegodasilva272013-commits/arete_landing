@@ -9,6 +9,7 @@ const https = require("https");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const APP_VERSION = "webhook-native-http-2026-02-07";
 
 app.use(express.static(path.join(__dirname)));
 app.use(express.urlencoded({ extended: true }));
@@ -245,13 +246,27 @@ app.post("/api/submit", async (req, res) => {
     }
 
     if (!webhookOk && !emailOk) {
-      return res.status(502).json({ message: "Error enviando el formulario." });
+      return res.status(502).json({
+        message: "Error enviando el formulario.",
+        version: APP_VERSION,
+        webhookOk,
+        emailOk
+      });
     }
 
-    return res.json({ message: "Enviado correctamente." });
+    return res.json({
+      message: "Enviado correctamente.",
+      version: APP_VERSION,
+      webhookOk,
+      emailOk
+    });
   } catch (error) {
     console.error("Submit error", error);
-    return res.status(500).json({ message: "Error enviando el formulario." });
+    return res.status(500).json({
+      message: "Error enviando el formulario.",
+      version: APP_VERSION,
+      error: error?.message || "unknown"
+    });
   }
 });
 
