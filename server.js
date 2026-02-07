@@ -128,18 +128,8 @@ app.post("/api/submit", async (req, res) => {
   };
 
   const sendWebhook = async () => {
-    const url = new URL(webhookUrl);
-    Object.entries(payload).forEach(([k, v]) => url.searchParams.set(k, String(v ?? "")));
-
-    const finalUrl = url.toString();
-    console.log("WEBHOOK URL length:", finalUrl.length);
-    console.log("WEBHOOK URL:", finalUrl);
-
-    if (finalUrl.length > 4000) {
-      return { ok: false, status: 414, body: "URI_TOO_LONG: GET demasiado largo (probable 'mejora')." };
-    }
-
-    const r = await requestUrl(finalUrl, "GET");
+    console.log("WEBHOOK URL:", webhookUrl);
+    const r = await requestUrl(webhookUrl, "POST", JSON.stringify(payload));
     console.log("WEBHOOK RES:", r.status, (r.body || "").slice(0, 200));
     return r;
   };

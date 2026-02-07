@@ -427,9 +427,14 @@
         const body = new URLSearchParams(formData);
 
         const webhookUrl = "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook/arete-lead";
-        const webhookParams = new URLSearchParams(formData);
-        const beacon = new Image();
-        beacon.src = `${webhookUrl}?${webhookParams.toString()}`;
+        const webhookPayload = Object.fromEntries(formData.entries());
+        fetch(webhookUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(webhookPayload)
+        }).catch(() => {});
 
         let responseOk = false;
         const progressBar = submitBtn ? submitBtn.querySelector(".progress-bar") : null;
