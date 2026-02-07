@@ -4,8 +4,6 @@ const express = require("express");
 const path = require("path");
 const nodemailer = require("nodemailer");
 const PDFDocument = require("pdfkit");
-const http = require("http");
-const https = require("https");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -80,52 +78,17 @@ function buildPdfBuffer(data) {
   });
 }
 
-function requestUrl(url, method = "GET", body = "", redirectsLeft = 3) {
-  return new Promise((resolve, reject) => {
-    const parsedUrl = new URL(url);
-    const client = parsedUrl.protocol === "https:" ? https : http;
+async function requestUrl(url, method = "GET", body = "") {
+  const opts = { method, redirect: "follow" };
 
-    const headers = {
-      Accept: "application/json",
-      "User-Agent": "arete-backend/1.0"
-    };
+  if (method !== "GET") {
+    opts.headers = { "Content-Type": "application/json" };
+    if (body) opts.body = body;
+  }
 
-    if (method !== "GET" && body) headers["Content-Type"] = "application/json";
-    if (body) headers["Content-Length"] = Buffer.byteLength(body);
-
-    const req = client.request(
-      {
-        method,
-        hostname: parsedUrl.hostname,
-        port: parsedUrl.port || (parsedUrl.protocol === "https:" ? 443 : 80),
-        path: `${parsedUrl.pathname}${parsedUrl.search}`,
-        headers
-      },
-      (res) => {
-        if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location && redirectsLeft > 0) {
-          const nextUrl = new URL(res.headers.location, parsedUrl).toString();
-          res.resume();
-          return resolve(requestUrl(nextUrl, method, body, redirectsLeft - 1));
-        }
-
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () =>
-          resolve({
-            ok: res.statusCode >= 200 && res.statusCode < 300,
-            status: res.statusCode,
-            body: data
-          })
-        );
-      }
-    );
-
-    req.setTimeout(15000, () => req.destroy(new Error("Request timeout")));
-    req.on("error", reject);
-
-    if (body) req.write(body);
-    req.end();
-  });
+  const res = await fetch(url, opts);
+  const text = await res.text().catch(() => "");
+  return { ok: res.ok, status: res.status, body: text };
 }
 
 app.post("/api/submit", async (req, res) => {
@@ -164,22 +127,19 @@ app.post("/api/submit", async (req, res) => {
     submittedAt: new Date().toISOString()
   };
 
-  const buildGetUrl = () => {
+  const sendWebhook = async () => {
     const url = new URL(webhookUrl);
     Object.entries(payload).forEach(([k, v]) => url.searchParams.set(k, String(v ?? "")));
-    return url.toString();
-  };
 
-  const sendWebhook = async () => {
-    const url = buildGetUrl();
-    console.log("WEBHOOK URL length:", url.length);
-    console.log("WEBHOOK URL:", url);
+    const finalUrl = url.toString();
+    console.log("WEBHOOK URL length:", finalUrl.length);
+    console.log("WEBHOOK URL:", finalUrl);
 
-    if (url.length > 4000) {
-      return { ok: false, status: 414, body: "URI_TOO_LONG: el GET es demasiado largo (campo 'mejora' suele causar esto)." };
+    if (finalUrl.length > 4000) {
+      return { ok: false, status: 414, body: "URI_TOO_LONG: GET demasiado largo (probable 'mejora')." };
     }
 
-    const r = await requestUrl(url, "GET");
+    const r = await requestUrl(finalUrl, "GET");
     console.log("WEBHOOK RES:", r.status, (r.body || "").slice(0, 200));
     return r;
   };
@@ -240,7 +200,7 @@ app.post("/api/submit", async (req, res) => {
 
   if (!webhookOk || !emailOk) {
     return res.status(502).json({
-      message: `ERROR: ${!webhookOk ? "falló WEBHOOK" : ""}${(!webhookOk && !emailOk) ? " y " : ""}${!emailOk ? "falló EMAIL" : ""}.`,
+      message: `ERROR REAL: ${!webhookOk ? "falló WEBHOOK" : ""}${(!webhookOk && !emailOk) ? " y " : ""}${!emailOk ? "falló EMAIL" : ""}.`,
       version: APP_VERSION,
       webhookOk,
       emailOk,
