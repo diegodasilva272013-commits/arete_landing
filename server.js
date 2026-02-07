@@ -85,51 +85,6 @@ app.post("/api/submit", async (req, res) => {
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 465),
-      secure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
-
-    const pdfBuffer = await buildPdfBuffer({ nombre, empresa, cargo, email, telefono, mejora });
-
-    const mailTo = process.env.MAIL_TO || "diegodasilva272013@gmail.com";
-    const from = process.env.MAIL_FROM || process.env.SMTP_USER;
-
-    const mail = {
-      from,
-      to: mailTo,
-      subject: "Nuevo Blueprint Diagnostic",
-      text: `Nuevo lead:\n\nNombre: ${nombre}\nEmpresa: ${empresa}\nCargo: ${cargo}\nEmail: ${email}\nTeléfono: ${telefono}\nMejora con IA: ${mejora}`,
-      attachments: [
-        {
-          filename: "blueprint-diagnostic.pdf",
-          content: pdfBuffer
-        }
-      ]
-    };
-
-    await transporter.sendMail(mail);
-
-    if (String(process.env.SEND_COPY_TO_USER).toLowerCase() === "true" && email) {
-      await transporter.sendMail({
-        from,
-        to: email,
-        subject: "Tu Blueprint Diagnostic",
-        text: "Gracias por tu solicitud. Adjuntamos tu Blueprint Diagnostic.",
-        attachments: [
-          {
-            filename: "blueprint-diagnostic.pdf",
-            content: pdfBuffer
-          }
-        ]
-      });
-    }
-
     const webhookUrl =
       process.env.N8N_WEBHOOK_URL ||
       "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook/arete-lead";
@@ -167,40 +122,115 @@ app.post("/api/submit", async (req, res) => {
 
     let response;
 
-    if (webhookMethod === "GET") {
-      response = await fetch(buildGetUrl(), {
-        ...baseOptions,
-        method: "GET"
-      });
-    } else if (webhookMethod === "POST") {
-      response = await fetch(webhookUrl, {
-        ...baseOptions,
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
-    } else {
-      response = await fetch(webhookUrl, {
-        ...baseOptions,
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        response = await fetch(buildGetUrl(), {
+    const sendWebhook = async () => {
+      if (webhookMethod === "GET") {
+        return fetch(buildGetUrl(), {
           ...baseOptions,
           method: "GET"
         });
       }
-    }
+
+      if (webhookMethod === "POST") {
+        return fetch(webhookUrl, {
+          ...baseOptions,
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+      }
+
+      const postResponse = await fetch(webhookUrl, {
+        ...baseOptions,
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      if (postResponse.ok) return postResponse;
+
+      return fetch(buildGetUrl(), {
+        ...baseOptions,
+        method: "GET"
+      });
+    };
+
+    const sendEmail = async () => {
+      if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        return { skipped: true };
+      }
+
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 465),
+        secure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+
+      const pdfBuffer = await buildPdfBuffer({ nombre, empresa, cargo, email, telefono, mejora });
+
+      const mailTo = process.env.MAIL_TO || "diegodasilva272013@gmail.com";
+      const from = process.env.MAIL_FROM || process.env.SMTP_USER;
+
+      const mail = {
+        from,
+        to: mailTo,
+        subject: "Nuevo Blueprint Diagnostic",
+        text: `Nuevo lead:\n\nNombre: ${nombre}\nEmpresa: ${empresa}\nCargo: ${cargo}\nEmail: ${email}\nTeléfono: ${telefono}\nMejora con IA: ${mejora}`,
+        attachments: [
+          {
+            filename: "blueprint-diagnostic.pdf",
+            content: pdfBuffer
+          }
+        ]
+      };
+
+      await transporter.sendMail(mail);
+
+      if (String(process.env.SEND_COPY_TO_USER).toLowerCase() === "true" && email) {
+        await transporter.sendMail({
+          from,
+          to: email,
+          subject: "Tu Blueprint Diagnostic",
+          text: "Gracias por tu solicitud. Adjuntamos tu Blueprint Diagnostic.",
+          attachments: [
+            {
+              filename: "blueprint-diagnostic.pdf",
+              content: pdfBuffer
+            }
+          ]
+        });
+      }
+
+      return { skipped: false };
+    };
+
+    const [webhookResult, emailResult] = await Promise.allSettled([
+      sendWebhook(),
+      sendEmail()
+    ]);
 
     clearTimeout(timeout);
 
-    if (!response.ok) {
-      return res.status(502).json({ message: "Error enviando al webhook." });
+    const webhookOk =
+      webhookResult.status === "fulfilled" && webhookResult.value && webhookResult.value.ok;
+    const emailOk = emailResult.status === "fulfilled";
+
+    if (!webhookOk) {
+      console.error("Webhook error", webhookResult.status === "rejected" ? webhookResult.reason : webhookResult.value);
+    }
+
+    if (!emailOk) {
+      console.error("Email error", emailResult.status === "rejected" ? emailResult.reason : emailResult.value);
+    }
+
+    if (!webhookOk && !emailOk) {
+      return res.status(502).json({ message: "Error enviando el formulario." });
     }
 
     return res.json({ message: "Enviado correctamente." });
   } catch (error) {
+    console.error("Submit error", error);
     return res.status(500).json({ message: "Error enviando el formulario." });
   }
 });
