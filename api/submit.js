@@ -40,7 +40,7 @@ function buildPdfBuffer(data) {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", (err) => reject(err));
 
-    const logoPath = path.join(projectRoot, "assets", "arete_logo_lockup.png.png");
+    const logoPath = path.join(projectRoot, "assets", "arete_logo.png");
     try {
       doc.image(logoPath, 50, 40, { width: 140 });
     } catch (_) {

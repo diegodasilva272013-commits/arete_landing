@@ -9,6 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const APP_VERSION = "webhook-native-http-2026-02-07";
 
+app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname)));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -22,7 +23,7 @@ function buildPdfBuffer(data) {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", (err) => reject(err));
 
-    const logoPath = path.join(__dirname, "assets", "arete_logo_lockup.png.png");
+    const logoPath = path.join(__dirname, "assets", "arete_logo.png");
     try {
       doc.image(logoPath, 50, 40, { width: 140 });
     } catch (_) {
