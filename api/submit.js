@@ -1,3 +1,4 @@
+const fs = require("fs");
 const path = require("path");
 const nodemailer = require("nodemailer");
 const PDFDocument = require("pdfkit");
@@ -29,6 +30,13 @@ function parseBody(req) {
       }
     });
   });
+}
+
+function saveSubmission(payload) {
+  const logPath = path.join(projectRoot, "submissions.log");
+  const line = `${new Date().toISOString()} | ${JSON.stringify(payload)}\n`;
+  fs.appendFileSync(logPath, line);
+  return true;
 }
 
 function buildPdfBuffer(data) {
@@ -130,13 +138,20 @@ module.exports = async function handler(req, res) {
   const webhookUrl = process.env.WEBHOOK_URL || "https://setteriaarete-n8n.ts3f2b.easypanel.host/webhook/arete-lead/";
 
   const sendWebhook = async () => {
+    if (!process.env.WEBHOOK_URL) {
+      return { ok: true, skipped: true, reason: "Sin webhook configurado." };
+    }
+
     const r = await requestUrl(webhookUrl, "POST", JSON.stringify(payload));
+    if (!r.ok) {
+      throw new Error(`Webhook falló: ${r.status}`);
+    }
     return r;
   };
 
   const sendEmail = async () => {
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      throw new Error("SMTP no configurado.");
+      return { ok: true, skipped: true, reason: "Sin SMTP configurado." };
     }
 
     const transporter = nodemailer.createTransport({
@@ -172,15 +187,17 @@ module.exports = async function handler(req, res) {
   };
 
   const [wh, em] = await Promise.allSettled([sendWebhook(), sendEmail()]);
-  const webhookOk = wh.status === "fulfilled" && wh.value?.ok === true;
-  const emailOk = em.status === "fulfilled";
+  const storedLocally = saveSubmission(payload);
+  const webhookOk = wh.status === "fulfilled" && (wh.value?.ok === true || wh.value?.skipped === true);
+  const emailOk = em.status === "fulfilled" && (em.value?.ok === true || em.value?.skipped === true);
 
-  res.statusCode = webhookOk && emailOk ? 200 : 502;
+  res.statusCode = storedLocally ? 200 : 500;
   res.setHeader("Content-Type", "application/json");
   return res.end(JSON.stringify({
-    message: webhookOk && emailOk ? "OK: webhook y email enviados." : "Hubo un problema al procesar el formulario.",
+    message: storedLocally ? "Recibimos tu solicitud y la guardamos para seguimiento." : "No pudimos guardar la solicitud.",
     version: APP_VERSION,
     webhookOk,
-    emailOk
+    emailOk,
+    storedLocally
   }));
 };

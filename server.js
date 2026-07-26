@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const express = require("express");
+const fs = require("fs");
 const path = require("path");
 const nodemailer = require("nodemailer");
 const PDFDocument = require("pdfkit");
@@ -13,6 +14,13 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname)));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+function saveSubmission(payload) {
+  const logPath = path.join(__dirname, "submissions.log");
+  const line = `${new Date().toISOString()} | ${JSON.stringify(payload)}\n`;
+  fs.appendFileSync(logPath, line);
+  return true;
+}
 
 function buildPdfBuffer(data) {
   return new Promise((resolve, reject) => {
@@ -129,15 +137,22 @@ app.post("/api/submit", async (req, res) => {
   };
 
   const sendWebhook = async () => {
+    if (!process.env.WEBHOOK_URL) {
+      return { ok: true, skipped: true, reason: "Sin webhook configurado." };
+    }
+
     console.log("WEBHOOK URL:", webhookUrl);
     const r = await requestUrl(webhookUrl, "POST", JSON.stringify(payload));
     console.log("WEBHOOK RES:", r.status, (r.body || "").slice(0, 200));
+    if (!r.ok) {
+      throw new Error(`Webhook falló: ${r.status}`);
+    }
     return r;
   };
 
   const sendEmail = async () => {
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      throw new Error("SMTP no configurado (faltan SMTP_HOST/SMTP_USER/SMTP_PASS).");
+      return { ok: true, skipped: true, reason: "Sin SMTP configurado." };
     }
 
     const transporter = nodemailer.createTransport({
@@ -175,36 +190,43 @@ app.post("/api/submit", async (req, res) => {
   };
 
   const [wh, em] = await Promise.allSettled([sendWebhook(), sendEmail()]);
+  const storedLocally = saveSubmission(payload);
 
-  const webhookOk = wh.status === "fulfilled" && wh.value?.ok === true;
-  const emailOk = em.status === "fulfilled";
+  const webhookOk = wh.status === "fulfilled" && (wh.value?.ok === true || wh.value?.skipped === true);
+  const emailOk = em.status === "fulfilled" && (em.value?.ok === true || em.value?.skipped === true);
 
   const webhookError = wh.status === "rejected"
     ? String(wh.reason?.message || wh.reason)
-    : webhookOk
-      ? null
-      : `status=${wh.value?.status} body=${String(wh.value?.body || "").slice(0, 200)}`;
+    : wh.value?.skipped
+      ? "skipped"
+      : null;
 
   const emailError = em.status === "rejected"
     ? String(em.reason?.message || em.reason)
-    : null;
+    : em.value?.skipped
+      ? "skipped"
+      : null;
 
-  if (!webhookOk || !emailOk) {
-    return res.status(502).json({
-      message: `ERROR REAL: ${!webhookOk ? "falló WEBHOOK" : ""}${(!webhookOk && !emailOk) ? " y " : ""}${!emailOk ? "falló EMAIL" : ""}.`,
+  if (!storedLocally) {
+    return res.status(500).json({
+      message: "No pudimos guardar la solicitud.",
       version: APP_VERSION,
       webhookOk,
       emailOk,
       webhookError,
-      emailError
+      emailError,
+      storedLocally: false
     });
   }
 
   return res.status(200).json({
-    message: "OK: webhook y email enviados.",
+    message: "Recibimos tu solicitud y la guardamos para seguimiento.",
     version: APP_VERSION,
-    webhookOk: true,
-    emailOk: true
+    webhookOk,
+    emailOk,
+    webhookError,
+    emailError,
+    storedLocally: true
   });
 });
 
