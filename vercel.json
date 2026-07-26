@@ -14,8 +14,14 @@
     {
       "src": "/api/(.*)",
       "dest": "/api/index.js"
-    }
-    ,
+    },
+    {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1",
+      "headers": {
+        "cache-control": "public, max-age=3600"
+      }
+    },
     {
       "src": "/(.*)",
       "dest": "/index.html"
