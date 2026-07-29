@@ -1,91 +1,19 @@
 require("dotenv").config();
 
 const express = require("express");
-const fs = require("fs");
 const path = require("path");
 const nodemailer = require("nodemailer");
-const PDFDocument = require("pdfkit");
+const { saveSubmission } = require("./lib/storage");
+const { buildLeadEmailHtml, buildUserCopyHtml } = require("./lib/email");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = "webhook-native-http-2026-02-07";
+const APP_VERSION = "webhook-native-http-2026-07-26";
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname)));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-
-function saveSubmission(payload) {
-  const logPath = path.join(__dirname, "submissions.log");
-  const line = `${new Date().toISOString()} | ${JSON.stringify(payload)}\n`;
-  fs.appendFileSync(logPath, line);
-  return true;
-}
-
-function buildPdfBuffer(data) {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: "A4", margin: 50 });
-    const chunks = [];
-
-    doc.on("data", (chunk) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-    doc.on("error", (err) => reject(err));
-
-    const logoPath = path.join(__dirname, "assets", "arete_logo.png");
-    try {
-      doc.image(logoPath, 50, 40, { width: 140 });
-    } catch (_) {
-      // If logo fails, continue without it.
-    }
-
-    const companyLine = data.empresa ? `Empresa: ${data.empresa}` : "Empresa: -";
-    const dateLine = `Fecha: ${new Date().toLocaleDateString("es-ES")}`;
-
-    doc
-      .fillColor("#0b1b2b")
-      .fontSize(18)
-      .text("Blueprint Diagnostic", 50, 125, { align: "left" });
-
-    doc
-      .fillColor("#3b6bd6")
-      .fontSize(11)
-      .text("Areté Soluciones", 50, 150, { align: "left" });
-
-    doc
-      .fillColor("#0b1b2b")
-      .fontSize(10)
-      .text(companyLine, 380, 130, { align: "left" })
-      .text(dateLine, 380, 145, { align: "left" });
-
-    doc
-      .moveTo(50, 175)
-      .lineTo(545, 175)
-      .strokeColor("#e5e7eb")
-      .stroke();
-
-    doc.moveDown(4);
-    doc.fillColor("#111827").fontSize(12).text("Datos de contacto:");
-
-    const fields = [
-      ["Nombre", data.nombre],
-      ["Empresa", data.empresa],
-      ["Cargo", data.cargo],
-      ["Email", data.email],
-      ["Teléfono", data.telefono],
-      ["Mejora con IA", data.mejora]
-    ];
-
-    fields.forEach(([label, value]) => {
-      doc.fillColor("#0b1b2b").fontSize(11).text(`${label}:`, { continued: true });
-      doc.fillColor("#111827").fontSize(11).text(` ${value || "-"}`);
-    });
-
-    doc.moveDown(2);
-    doc.fillColor("#6b7280").fontSize(10).text("Generado automáticamente desde Blueprint Diagnostic.");
-
-    doc.end();
-  });
-}
 
 async function requestUrl(url, method = "GET", body = "") {
   const opts = { method, redirect: "follow" };
@@ -162,18 +90,16 @@ app.post("/api/submit", async (req, res) => {
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
     });
 
-    const pdfBuffer = await buildPdfBuffer(payload);
-
     const mailTo = process.env.MAIL_TO || "diegodasilva272013@gmail.com";
     const from = process.env.MAIL_FROM || process.env.SMTP_USER;
 
     await transporter.sendMail({
       from,
       to: mailTo,
-      subject: "Nuevo Blueprint Diagnostic",
+      subject: `Nuevo Blueprint Diagnostic — ${nombre}`,
+      html: buildLeadEmailHtml(payload),
       text:
-        `Nuevo lead:\n\nNombre: ${nombre}\nEmpresa: ${empresa}\nCargo: ${cargo}\nEmail: ${email}\nTeléfono: ${telefono}\nMejora con IA: ${mejora}`,
-      attachments: [{ filename: "blueprint-diagnostic.pdf", content: pdfBuffer }]
+        `Nuevo lead:\n\nNombre: ${nombre}\nEmpresa: ${empresa}\nCargo: ${cargo}\nEmail: ${email}\nTeléfono: ${telefono}\nMejora con IA: ${mejora}`
     });
 
     if (String(process.env.SEND_COPY_TO_USER).toLowerCase() === "true" && email) {
@@ -181,8 +107,8 @@ app.post("/api/submit", async (req, res) => {
         from,
         to: email,
         subject: "Tu Blueprint Diagnostic",
-        text: "Gracias por tu solicitud. Adjuntamos tu Blueprint Diagnostic.",
-        attachments: [{ filename: "blueprint-diagnostic.pdf", content: pdfBuffer }]
+        html: buildUserCopyHtml(),
+        text: "Gracias por tu solicitud. Nuestro equipo se va a contactar a la brevedad."
       });
     }
 
@@ -190,7 +116,7 @@ app.post("/api/submit", async (req, res) => {
   };
 
   const [wh, em] = await Promise.allSettled([sendWebhook(), sendEmail()]);
-  const storedLocally = saveSubmission(payload);
+  const storedLocally = saveSubmission(payload, __dirname);
 
   const webhookOk = wh.status === "fulfilled" && (wh.value?.ok === true || wh.value?.skipped === true);
   const emailOk = em.status === "fulfilled" && (em.value?.ok === true || em.value?.skipped === true);
@@ -207,26 +133,20 @@ app.post("/api/submit", async (req, res) => {
       ? "skipped"
       : null;
 
-  if (!storedLocally) {
-    return res.status(500).json({
-      message: "No pudimos guardar la solicitud.",
-      version: APP_VERSION,
-      webhookOk,
-      emailOk,
-      webhookError,
-      emailError,
-      storedLocally: false
-    });
-  }
+  const delivered = webhookOk || emailOk;
 
-  return res.status(200).json({
-    message: "Recibimos tu solicitud y la guardamos para seguimiento.",
+  return res.status(delivered || storedLocally ? 200 : 500).json({
+    message: delivered
+      ? "Recibimos tu solicitud."
+      : storedLocally
+        ? "Recibimos tu solicitud y la guardamos para seguimiento, pero no pudimos notificarla en el momento."
+        : "No pudimos procesar la solicitud.",
     version: APP_VERSION,
     webhookOk,
     emailOk,
     webhookError,
     emailError,
-    storedLocally: true
+    storedLocally
   });
 });
 

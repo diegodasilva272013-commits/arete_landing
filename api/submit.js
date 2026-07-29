@@ -1,9 +1,9 @@
-const fs = require("fs");
 const path = require("path");
 const nodemailer = require("nodemailer");
-const PDFDocument = require("pdfkit");
+const { saveSubmission } = require("../lib/storage");
+const { buildLeadEmailHtml, buildUserCopyHtml } = require("../lib/email");
 
-const APP_VERSION = "vercel-native-2026-07-25";
+const APP_VERSION = "vercel-native-2026-07-26";
 const projectRoot = path.resolve(__dirname, "..");
 
 function parseBody(req) {
@@ -29,57 +29,6 @@ function parseBody(req) {
         resolve(result);
       }
     });
-  });
-}
-
-function saveSubmission(payload) {
-  const logPath = path.join(projectRoot, "submissions.log");
-  const line = `${new Date().toISOString()} | ${JSON.stringify(payload)}\n`;
-  fs.appendFileSync(logPath, line);
-  return true;
-}
-
-function buildPdfBuffer(data) {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: "A4", margin: 50 });
-    const chunks = [];
-
-    doc.on("data", (chunk) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-    doc.on("error", (err) => reject(err));
-
-    const logoPath = path.join(projectRoot, "assets", "arete_logo.png");
-    try {
-      doc.image(logoPath, 50, 40, { width: 140 });
-    } catch (_) {
-      // Continue without logo if the asset is unavailable.
-    }
-
-    const companyLine = data.empresa ? `Empresa: ${data.empresa}` : "Empresa: -";
-    const dateLine = `Fecha: ${new Date().toLocaleDateString("es-ES")}`;
-
-    doc.fillColor("#0b1b2b").fontSize(18).text("Blueprint Diagnostic", 50, 125, { align: "left" });
-    doc.fillColor("#3b6bd6").fontSize(11).text("Areté Soluciones", 50, 150, { align: "left" });
-    doc.fillColor("#0b1b2b").fontSize(10).text(companyLine, 380, 130, { align: "left" }).text(dateLine, 380, 145, { align: "left" });
-    doc.moveTo(50, 175).lineTo(545, 175).strokeColor("#e5e7eb").stroke();
-    doc.moveDown(4).fillColor("#111827").fontSize(12).text("Datos de contacto:");
-
-    const fields = [
-      ["Nombre", data.nombre],
-      ["Empresa", data.empresa],
-      ["Cargo", data.cargo],
-      ["Email", data.email],
-      ["Teléfono", data.telefono],
-      ["Mejora con IA", data.mejora]
-    ];
-
-    fields.forEach(([label, value]) => {
-      doc.fillColor("#0b1b2b").fontSize(11).text(`${label}:`, { continued: true });
-      doc.fillColor("#111827").fontSize(11).text(` ${value || "-"}`);
-    });
-
-    doc.moveDown(2).fillColor("#6b7280").fontSize(10).text("Generado automáticamente desde Blueprint Diagnostic.");
-    doc.end();
   });
 }
 
@@ -161,16 +110,15 @@ module.exports = async function handler(req, res) {
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
     });
 
-    const pdfBuffer = await buildPdfBuffer(payload);
     const mailTo = process.env.MAIL_TO || "diegodasilva272013@gmail.com";
     const from = process.env.MAIL_FROM || process.env.SMTP_USER;
 
     await transporter.sendMail({
       from,
       to: mailTo,
-      subject: "Nuevo Blueprint Diagnostic",
-      text: `Nuevo lead:\n\nNombre: ${nombre}\nEmpresa: ${empresa}\nCargo: ${cargo}\nEmail: ${email}\nTeléfono: ${telefono}\nMejora con IA: ${mejora}`,
-      attachments: [{ filename: "blueprint-diagnostic.pdf", content: pdfBuffer }]
+      subject: `Nuevo Blueprint Diagnostic — ${nombre}`,
+      html: buildLeadEmailHtml(payload),
+      text: `Nuevo lead:\n\nNombre: ${nombre}\nEmpresa: ${empresa}\nCargo: ${cargo}\nEmail: ${email}\nTeléfono: ${telefono}\nMejora con IA: ${mejora}`
     });
 
     if (String(process.env.SEND_COPY_TO_USER).toLowerCase() === "true" && email) {
@@ -178,8 +126,8 @@ module.exports = async function handler(req, res) {
         from,
         to: email,
         subject: "Tu Blueprint Diagnostic",
-        text: "Gracias por tu solicitud. Adjuntamos tu Blueprint Diagnostic.",
-        attachments: [{ filename: "blueprint-diagnostic.pdf", content: pdfBuffer }]
+        html: buildUserCopyHtml(),
+        text: "Gracias por tu solicitud. Nuestro equipo se va a contactar a la brevedad."
       });
     }
 
@@ -187,17 +135,27 @@ module.exports = async function handler(req, res) {
   };
 
   const [wh, em] = await Promise.allSettled([sendWebhook(), sendEmail()]);
-  const storedLocally = saveSubmission(payload);
+  const storedLocally = saveSubmission(payload, projectRoot);
   const webhookOk = wh.status === "fulfilled" && (wh.value?.ok === true || wh.value?.skipped === true);
   const emailOk = em.status === "fulfilled" && (em.value?.ok === true || em.value?.skipped === true);
+  const webhookError = wh.status === "rejected" ? String(wh.reason?.message || wh.reason) : null;
+  const emailError = em.status === "rejected" ? String(em.reason?.message || em.reason) : null;
 
-  res.statusCode = storedLocally ? 200 : 500;
+  const delivered = webhookOk || emailOk;
+
+  res.statusCode = delivered || storedLocally ? 200 : 500;
   res.setHeader("Content-Type", "application/json");
   return res.end(JSON.stringify({
-    message: storedLocally ? "Recibimos tu solicitud y la guardamos para seguimiento." : "No pudimos guardar la solicitud.",
+    message: delivered
+      ? "Recibimos tu solicitud."
+      : storedLocally
+        ? "Recibimos tu solicitud y la guardamos para seguimiento, pero no pudimos notificarla en el momento."
+        : "No pudimos procesar la solicitud.",
     version: APP_VERSION,
     webhookOk,
     emailOk,
+    webhookError,
+    emailError,
     storedLocally
   }));
 };
